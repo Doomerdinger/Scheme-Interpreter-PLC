@@ -46,6 +46,19 @@
 			[lambda-exp (args bodies) (lambda-proc bodies args envir)]
 			[lambda-exp-vari (arglist body) (lambda-vari-proc body arglist envir)]
 			[lambda-exp-dot (args arglist body) (lambda-dot-proc body args arglist envir)]
+			
+			[while-exp (text-exp bodies) 
+				(letrec ((while-loop (lambda ()
+					(if (eval-exp text-exp envir)
+						(begin 
+							(eval-rands bodies envir)
+							(while-loop)
+						)
+					))))
+					(while-loop)
+				)
+			]
+
 			[else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]
 		)
 	)
@@ -87,7 +100,7 @@
 
 ; The names of primitive procedures
 (define *prim-proc-names*
-	'(+ - * / = add1 sub1 cons quote not zero? > >= < <= car cdr list null? eq? equal? length list->vector
+	'(+ - * / = add1 sub1 quotient cons quote not zero? > >= < <= car cdr list null? eq? eqv? equal? length list->vector
 		list? pair? vector->list vector? vector-set! number? symbol? caar cadr cadar procedure? set-car! set-cdr!
 		vector-ref vector map apply)
 )
@@ -113,6 +126,7 @@
 
 		[(add1) (+ (1st args) 1)]
 		[(sub1) (- (1st args) 1)]
+		[(quotient) (quotient (1st args) (2nd args))]
 
 		[(+) (apply + args)]
 		[(-) (apply - args)]
@@ -121,6 +135,7 @@
 
 		[(=) (apply = args)]
 		[(eq?) (eq? (1st args) (2nd args))]
+		[(eqv?) (eqv? (1st args) (2nd args))]
 		[(equal?) (equal? (1st args) (2nd args))]
 
 		[(cons) (cons (1st args) (2nd args))]

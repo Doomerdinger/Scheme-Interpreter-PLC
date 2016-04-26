@@ -16,6 +16,12 @@
 		[(literal? datum) (lit-exp datum)]
 		[(list? datum)
 			(cond
+				[(eqv? (1st datum) 'while)
+					(if (< (length datum) 3)
+						(eopl:error 'parse-exp "too few arguments in while expression: ~s" datum)
+						(while-exp (parse-exp (2nd datum)) (map parse-exp (cddr datum)))
+					)
+				]
 				[(eqv? (1st datum) 'lambda)
 					(cond
 						[(< (length datum) 3)
@@ -162,37 +168,94 @@
 				[let-exp (vars declarations bodies)
 					(app-exp (lambda-exp vars (map syntax-expand bodies)) (map syntax-expand declarations))
 				]
-
 				[let-named-exp (name vars declarations bodies) (let-named-exp name vars (map syntax-expand declarations) (map syntax-expand bodies))]
-				[let*-exp (vars declarations bodies) (let*-exp vars (map syntax-expand declarations) (map syntax-expand bodies))]
+				[let*-exp (vars declarations bodies) 
+					(car (fold-right (lambda (curVar curDecl next) (list (syntax-expand (let-exp (list curVar) (list (syntax-expand curDecl)) next))))
+								(map syntax-expand bodies)
+								vars
+								declarations
+					)	 )
+				]
+
 				[letrec-exp (vars declarations bodies) (letrec-exp vars (map syntax-expand declarations) (map syntax-expand bodies))]
 				[set!-exp (var expr) (set!-exp var (syntax-expand expr))]
-				
+				[while-exp (test-exp bodies) (while-exp (syntax-expand test-exp) (map syntax-expand bodies))]
+
 				[app-exp (func args) 
 					(cases expression func
 						[var-exp (id)
-							(cond
-								[(eqv? id 'cond)
-									#f ;; not done
-								]
-								
-								[(eqv? id 'case)
-									(letrec ((expand-case
-											(lambda (comparison val-exp-pairs)
-												(cond 
-													((eqv? (var-exp 'else) (2nd (1st val-exp-pairs))) (expand-case (3rd (3rd (1st val-exp-pairs)))))
-													; fuck this
-											)))
-											(expand-case (1st args) (cdr args))
+							(case id
+								;;Using fold for cond and case is less clear, but we only have to traverse the list once time.
+								;;We gain efficiency.
+								;;Additionally, nothing here is parsed into its own type, it is all done
+								;;	entirely with the syntax expansion.
+								['cond
+									(fold-right
+										(lambda (cur next)
+											(cases expression cur
+												[app-exp (rator expr)
+													(cases expression rator
+														[var-exp (id) 
+															(if (eqv? id 'else)
+																(app-exp (lambda-exp '() (map syntax-expand expr)) '((lit-exp ())))
+																(if-else-exp (syntax-expand rator) (app-exp (lambda-exp '() (map syntax-expand expr)) '((lit-exp ()))) next)
+															)
+														]
+														[else (if-else-exp (syntax-expand rator) (app-exp (lambda-exp '() (map syntax-expand expr)) '((lit-exp ()))) next)]
+													)
+												]
+												[else (eopl:error 'syntax-expand "incorrect cond statement: ~s" exp)]
+											)
+										)
+										'(app-exp (var-exp void) ())
+										args
 									)
 								]
 
-								[(eqv? id 'begin) (app-exp (lambda-exp '() args) '())]
+								['case
+									(if (<= (length args) 1)
+										(eopl:error 'syntax-expand "incorrect number of args in case statement: ~s" exp)
+										(let ((test (syntax-expand (car args))))
+											(fold-right
+												(lambda (cur next)
+													(cases expression cur
+														[app-exp (rator expr)
+															(cases expression rator
+																[var-exp (id)
+																	(if (eqv? id 'else)
+																		(app-exp (lambda-exp '() (map syntax-expand expr)) '((lit-exp ())))
+																		(if-else-exp (app-exp (var-exp 'eqv?) (list (syntax-expand rator) test)) (app-exp (lambda-exp '() (map syntax-expand expr)) '((lit-exp ()))) next)
+																	)
+																]
+																[app-exp (rat exprr)
+																	(if-else-exp
+																		(syntax-expand 
+																			(app-exp (var-exp 'or)
+																				(cons (app-exp (var-exp 'eqv?) (list (syntax-expand rat) test))
+																					(map (lambda (x) (app-exp (var-exp 'eqv?) (list (syntax-expand x) test))) exprr)
+																				)
+																			)
+																		)
+																		(app-exp (lambda-exp '() (map syntax-expand expr)) '((lit-exp ())))
+																		next
+																	)
+																]
+																[else (eopl:error 'syntax-expand "incorrect case statement: ~s" exp)]
+															)
+														]
+														[else (eopl:error 'syntax-expand "incorrect case statement: ~s" exp)]
+													)
+												)
+												'(app-exp (var-exp void) ())
+												(cdr args)
+											)
+										)
+									)
+								]
 
-								[(eqv? id 'let*) ; NEEDS TO BE SYNTAX EXPANDED STILL!!!!!!!!!!!!!
-									(fold-right (lambda (x y) (list 'let (list x) y)) (caddr exp) (cadr exp))]
+								['begin (app-exp (lambda-exp '() (map syntax-expand args)) '((lit-exp ())))]
 
-								[(eqv? id 'and)
+								['and
 									(if (null? args)
 										'(lit-exp #t)
 										(fold-right 
@@ -203,7 +266,7 @@
 									)
 								]
 								
-								[(eqv? id 'or) 
+								['or
 									(letrec 
 										((expand-or 
 											(lambda (args)
@@ -220,17 +283,9 @@
 								]
 								[else (app-exp func (map syntax-expand args))]
 							)
-							;(if (eqv? id 'while)
-							;	;;WHILE EXPANSION
-							;	;;do while expansion
-							;	(let-exp '(l) (parse-exp `))
-							;	(app-exp (syntax-expand func) (map syntax-expand args))
-							;)
 						]
 						[else (app-exp (syntax-expand func) (map syntax-expand args))]
 					)
-					;(app-exp (syntax-expand func) (map syntax-expand args))
-
 				]
 
 				[if-else-exp (test consequent altern) (if-else-exp (syntax-expand test) (syntax-expand consequent) (syntax-expand altern))]
@@ -246,30 +301,3 @@
 		)
 	)
 )
-
-; (while cond bodies) -> (letrec(
-
-;(while (< (car a) 100000) 
-;	(set-car! a (* (car a) (car a)))
-;	(set-car! a (quotient (car a) 2))
-;)
-
-;(let
-;	((l
-;		(lambda (c)
-;			(if c
-;				(apply begin X)
-;			)
-;		)
-;	))
-
-;)
-
-;(let*
-;	(
-;		(l)
-;		(o
-;			(lambda (c) (if (c) l))
-;		)
-;	)
-;)

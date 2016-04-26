@@ -8,10 +8,10 @@
 
 (define-datatype expression expression?
 	[var-exp (id symbol?)]
-	[lambda-exp-dot (args (list-of symbol?)) (arglist symbol?) (body (list-of expression?))]
-	[lambda-exp-vari (arglist symbol?) (body (list-of expression?))]
+	[lambda-exp-dot (args (list-of symbol?)) (arglist symbol?) (bodies (list-of expression?))]
+	[lambda-exp-vari (arglist symbol?) (bodies (list-of expression?))]
 
-	[lambda-exp (args (list-of symbol?)) (body (list-of expression?))]
+	[lambda-exp (args (list-of symbol?)) (bodies (list-of expression?))]
 	[let-exp (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
 
 	[let-named-exp (name symbol?) (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
@@ -20,6 +20,8 @@
 	[set!-exp (var symbol?) (expr expression?)]
 	
 	[app-exp (rator expression?) (args (list-of expression?))]
+
+	[while-exp (test-exps expression?) (bodies (list-of expression?))]
 
 	[if-else-exp (test expression?) (consequent expression?) (altern expression?)]
 	[if-exp (test expression?) (consequent expression?)]

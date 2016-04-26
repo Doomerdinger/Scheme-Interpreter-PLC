@@ -24,6 +24,9 @@
 						[(symbol? (2nd datum))
 							(lambda-exp-vari (2nd datum) (map parse-exp (cddr datum)))
 						]
+						[(and (pair? (2nd datum)) (not (list? (2nd datum))))
+							(lambda-exp-dot (all-but-last-elem (2nd datum)) (last-elem (2nd datum)) (map parse-exp (cddr datum)))
+						]
 						[(and (or (pair? (2nd datum)) (null? (2nd datum))) ((list-of symbol?) (2nd datum)))
 							(lambda-exp (2nd datum) (map parse-exp (cddr datum)))
 						]
@@ -145,3 +148,128 @@
 		[else (eopl:error 'parse-exp "bad expression: ~s" datum)]
 	)
 )
+
+
+(define (syntax-expand exp)
+	(cond
+		((expression? exp)
+			(cases expression exp
+				[var-exp (id) exp]
+				[lambda-exp-dot (args arglist bodies) (lambda-exp-dot args arglist (map syntax-expand bodies))]
+				[lambda-exp-vari (arglist bodies) (lambda-exp-vari arglist (map syntax-expand bodies))]
+
+				[lambda-exp (args bodies) (lambda-exp args (map syntax-expand bodies))]
+				[let-exp (vars declarations bodies)
+					(app-exp (lambda-exp vars (map syntax-expand bodies)) (map syntax-expand declarations))
+				]
+
+				[let-named-exp (name vars declarations bodies) (let-named-exp name vars (map syntax-expand declarations) (map syntax-expand bodies))]
+				[let*-exp (vars declarations bodies) (let*-exp vars (map syntax-expand declarations) (map syntax-expand bodies))]
+				[letrec-exp (vars declarations bodies) (letrec-exp vars (map syntax-expand declarations) (map syntax-expand bodies))]
+				[set!-exp (var expr) (set!-exp var (syntax-expand expr))]
+				
+				[app-exp (func args) 
+					(cases expression func
+						[var-exp (id)
+							(cond
+								[(eqv? id 'cond)
+									#f ;; not done
+								]
+								
+								[(eqv? id 'case)
+									(letrec ((expand-case
+											(lambda (comparison val-exp-pairs)
+												(cond 
+													((eqv? (var-exp 'else) (2nd (1st val-exp-pairs))) (expand-case (3rd (3rd (1st val-exp-pairs)))))
+													; fuck this
+											)))
+											(expand-case (1st args) (cdr args))
+									)
+								]
+
+								[(eqv? id 'begin) (app-exp (lambda-exp '() args) '())]
+
+								[(eqv? id 'let*) ; NEEDS TO BE SYNTAX EXPANDED STILL!!!!!!!!!!!!!
+									(fold-right (lambda (x y) (list 'let (list x) y)) (caddr exp) (cadr exp))]
+
+								[(eqv? id 'and)
+									(if (null? args)
+										'(lit-exp #t)
+										(fold-right 
+											(lambda (current next) (if-else-exp (syntax-expand current) next '(lit-exp #f)))
+											(car (last-pair args))
+											args
+										)
+									)
+								]
+								
+								[(eqv? id 'or) 
+									(letrec 
+										((expand-or 
+											(lambda (args)
+												(if (null? args)
+													(lit-exp #f)
+													(let ((expanded-car (syntax-expand (car args))))
+														(if-else-exp expanded-car expanded-car (expand-or (cdr args)))
+													)
+												)
+											)
+										))
+										(expand-or args)
+									)
+								]
+								[else (app-exp func (map syntax-expand args))]
+							)
+							;(if (eqv? id 'while)
+							;	;;WHILE EXPANSION
+							;	;;do while expansion
+							;	(let-exp '(l) (parse-exp `))
+							;	(app-exp (syntax-expand func) (map syntax-expand args))
+							;)
+						]
+						[else (app-exp (syntax-expand func) (map syntax-expand args))]
+					)
+					;(app-exp (syntax-expand func) (map syntax-expand args))
+
+				]
+
+				[if-else-exp (test consequent altern) (if-else-exp (syntax-expand test) (syntax-expand consequent) (syntax-expand altern))]
+				[if-exp (test consequent) (if-exp (syntax-expand test) (syntax-expand consequent))]
+				[lit-exp (id) exp]
+				[quote-exp (var) exp]				
+			)
+		)
+		((proc-val? exp)
+			(cases proc-val exp
+				[else exp]
+			)
+		)
+	)
+)
+
+; (while cond bodies) -> (letrec(
+
+;(while (< (car a) 100000) 
+;	(set-car! a (* (car a) (car a)))
+;	(set-car! a (quotient (car a) 2))
+;)
+
+;(let
+;	((l
+;		(lambda (c)
+;			(if c
+;				(apply begin X)
+;			)
+;		)
+;	))
+
+;)
+
+;(let*
+;	(
+;		(l)
+;		(o
+;			(lambda (c) (if (c) l))
+;		)
+;	)
+;)

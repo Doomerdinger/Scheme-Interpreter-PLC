@@ -16,6 +16,9 @@
 		[(literal? datum) (lit-exp datum)]
 		[(list? datum)
 			(cond
+				[(eqv? (1st datum) 'begin)
+					(begin-exp (map parse-exp (cdr datum)))
+				]
 				[(eqv? (1st datum) 'while)
 					(if (< (length datum) 3)
 						(eopl:error 'parse-exp "too few arguments in while expression: ~s" datum)
@@ -82,7 +85,7 @@
 										(let-named-exp
 											(2nd datum)
 											vars
-											(map parse-exp (map 3rd (2nd datum)))
+											(map parse-exp (map 2nd (3rd datum)))
 											(map parse-exp (cdddr datum))
 										)
 										(eopl:error 'parse-exp "sytax error in named let expression: ~s" datum)
@@ -142,6 +145,15 @@
 						(eopl:error 'parse-exp "incorrect number of arguments in set!: ~s" datum)
 					)
 				]
+				[(eqv? (1st datum) 'define)
+					(if (= (length datum) 3)
+						(if (symbol? (2nd datum))
+							(define-exp (2nd datum) (parse-exp (3rd datum)))
+							(eopl:error 'parse-exp "first arg not a sumbol in define: ~s" datum)
+						)
+						(eopl:error 'parse-exp "incorrect number of arguments in define: ~s" datum)
+					)
+				]
 				[(eqv? (1st datum) 'quote)
 					(if (= (length datum) 2)
 						(quote-exp (2nd datum))
@@ -177,7 +189,7 @@
 								vars
 								(map syntax-expand bodies)
 						))
-						(app-exp name (map syntax-expand declarations))
+						(list (app-exp (var-exp name) (map syntax-expand declarations)))
 					)
 				]
 
@@ -191,7 +203,7 @@
 
 				[letrec-exp (vars declarations bodies) (letrec-exp vars (map syntax-expand declarations) (map syntax-expand bodies))]
 
-
+				[begin-exp (bodies) (begin-exp (map syntax-expand bodies))]
 				;A letrec expression of the form
 
 				;(letrec ((var expr) ...) body1 body2 ...)
@@ -263,6 +275,8 @@
 
 
 				[set!-exp (var expr) (set!-exp var (syntax-expand expr))]
+				[define-exp (var expr) (define-exp var (syntax-expand expr))]
+
 				[while-exp (test-exp bodies) (while-exp (syntax-expand test-exp) (map syntax-expand bodies))]
 
 				[app-exp (func args) 
@@ -337,7 +351,7 @@
 									)
 								]
 
-								['begin (app-exp (lambda-exp '() (map syntax-expand args)) '((lit-exp ())))]
+								;['begin (app-exp (lambda-exp '() (map syntax-expand args)) '((lit-exp ())))]
 
 								['and
 									(if (null? args)
@@ -356,8 +370,10 @@
 											(lambda (args)
 												(if (null? args)
 													(lit-exp #f)
-													(let ((expanded-car (syntax-expand (car args))))
-														(if-else-exp expanded-car expanded-car (expand-or (cdr args)))
+													(let ((expanded-car (syntax-expand (car args))) (sym (gensym)))
+														(let-exp (list sym) (list expanded-car)
+															(list (if-else-exp (var-exp sym) (var-exp sym) (expand-or (cdr args))))
+														)
 													)
 												)
 											)

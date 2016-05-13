@@ -1,5 +1,5 @@
 ; Environment definitions for CSSE 304 Scheme interpreter.  Based on EoPL section 2.3
-(define cell 
+(define make-cell 
 	(lambda (val) (cons val 'this-is-a-cell))
 )
 
@@ -11,9 +11,9 @@
 	)
 )
 
-(define empty-env (lambda () (cell (empty-env-record))))
+(define empty-env (lambda () (make-cell (empty-env-record))))
 
-(define (extend-env syms vals env) (cell (extended-env-record syms vals env)))
+(define (extend-env syms vals env) (make-cell (extended-env-record syms vals env)))
 
 (define (list-find-position sym los) (list-index (lambda (xsym) (eqv? sym xsym)) los))
 
@@ -43,7 +43,7 @@
 ; succeed and fail are procedures applied if the var is or isn't found, respectively.
 (define (apply-env-ref env sym succeed fail)
 	(cases environment env
-		(empty-env-record () (fail))
+		(empty-env-record () (apply-env-ref-global sym succeed fail))
 		(extended-env-record (syms vals cell)
 			(let ((pos (list-find-position sym syms)))
 				(if (number? pos)
@@ -55,25 +55,85 @@
 	)
 )
 
+(define (apply-env-ref-global sym succeed fail)
+	(cases environment (deref global-env)
+		(empty-env-record () (eopl:error 'apply-env "The global environment is empty... What the flying fox did you do?"))
+		(extended-env-record (syms vals cell)
+			(let ((pos (list-find-position sym syms)))
+				(if (number? pos)
+					(succeed (list-ref vals pos))
+					(fail)
+				)
+			)
+		)
+	)
+)
+
 (define (apply-env cell sym succeed fail)
 	(apply-env-ref (deref cell) sym succeed fail)
 )
 
-(define (modify-env cell sym new)
+(define (modify-env-set! cell sym new)
 	(cases environment (deref cell)
-		(empty-env-record () (eopl:error 'apply-env "Fix this later!!"))
+		(empty-env-record () (modify-global-env-set! sym new))
 		(extended-env-record (syms vals extendedCell)
-			(cell-set!
-				cell
-				(let ((pos (list-find-position sym syms)))
+			(let ((pos (list-find-position sym syms)))
+				(if (number? pos)
+					(cell-set! cell
+						(extended-env-record
+							syms
+							(list-replace-at-position vals pos new)
+							extendedCell
+						)
+					)
+					(modify-env-set! extendedCell sym new)
+				)
+			)
+		)
+	)
+)
+
+(define (modify-global-env-set! sym new)
+	(cases environment (deref global-env)
+		(empty-env-record () (eopl:error 'apply-env "The global environment is empty for set!... What the flying fox did you do?"))
+		(extended-env-record (syms vals extendedCell)
+			(let ((pos (list-find-position sym syms)))
+				(if (number? pos)
+					(cell-set! global-env
+						(extended-env-record
+							syms
+							(list-replace-at-position vals pos new)
+							extendedCell
+						)
+					)
+					(eopl:error 'apply-env "Unable to find variable in an environment for set!: ~s" sym)
+				)
+			)
+		)
+	)
+)
+
+(define (modify-global-env-define sym new)
+	(cases environment (deref global-env)
+		(empty-env-record () (eopl:error 'apply-env "The global environment is empty for define... What the flying fox did you do?"))
+		(extended-env-record (syms vals extendedCell)
+			(let ((pos (list-find-position sym syms)))
+
+				(cell-set! global-env
 					(if (number? pos)
 						(extended-env-record
 							syms
 							(list-replace-at-position vals pos new)
 							extendedCell
 						)
-						(modify-env extendedCell sym new)
+						(extended-env-record
+							(cons sym syms)
+							(cons new vals)
+							;(list-replace-at-position vals pos new)
+							extendedCell
+						)
 					)
+					;;(eopl:error 'apply-env "Unable to find variable in global-environment for define: ~s" sym)
 				)
 			)
 		)

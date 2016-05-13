@@ -1,17 +1,21 @@
 ; top-level-eval evaluates a form in the global environment
 (define (top-level-eval form)
 	; later we may add things that are not expressions.
-	(eval-exp form init-env))
+	;(eval-exp form global-env))
+	(eval-exp form (empty-env))
+)
 
 ; eval-exp is the main component of the interpreter
 ; Everything put in the environment is in its most evauluated form
 ; with the exception of procedures, which are in their parced procedure form
 (define (eval-exp exp cell)
 	(let ((envir 
-		(cases environment (deref cell)
-			[empty-env-record () init-env]
-			[else cell]
-		)))
+			cell		
+			;(cases environment (deref cell)
+			;	[empty-env-record () global-env]
+			;	[else cell]
+			;)
+		))
 		(cases expression exp
 			[lit-exp (datum) datum]
 			[var-exp (id)
@@ -19,8 +23,13 @@
 					; procedure to call if id is in the environment 
 					(lambda (x) x)
 					(lambda () 
-						(eopl:error 'apply-env ; procedure to call if id not in env
-						"Variable not found in environment: ~s" id)
+						(apply-env global-env id
+							(lambda (x) x)
+							(lambda ()
+								(eopl:error 'apply-env ; procedure to call if id not in env
+								"Variable not found in environment: ~s" id)
+							)
+						)
 					)
 				)
 			]
@@ -41,9 +50,14 @@
 			]
 
 			[set!-exp (var expr)
-				(modify-env envir var (eval-exp expr envir))]
+				(modify-env-set! envir var (eval-exp expr envir))]
 
-
+			[define-exp (var expr)
+				(cases environment (deref envir)
+					(empty-env-record () (modify-global-env-define var (eval-exp expr envir)))
+					(extended-env-record (x y z) (eopl:error 'apply-env "Unable to use define outside of a global context!"))
+				)
+			]
 				;A letrec expression of the form
 
 				;(letrec ((var expr) ...) body1 body2 ...)
@@ -77,9 +91,9 @@
 										(eval-rands declarations env1)
 										env1
 									)))
-							(map (lambda (var) (modify-env env2 var (eval-exp (var-exp (concat-symbols var sym)) env2))) vars)
+							(map (lambda (var) (modify-env-set! env2 var (eval-exp (var-exp (concat-symbols var sym)) env2))) vars)
 		
-							(eval-rands bodies env2)
+							(last-elem (eval-rands bodies env2))
 						)
 					)
 				)
@@ -93,6 +107,8 @@
 			[lambda-exp-vari (arglist body) (lambda-vari-proc body arglist envir)]
 			[lambda-exp-dot (args arglist body) (lambda-dot-proc body args arglist envir)]
 			
+			[begin-exp (bodies) (last-elem (eval-rands bodies envir))]
+
 			[while-exp (text-exp bodies) 
 				(letrec ((while-loop (lambda ()
 					(if (eval-exp text-exp envir)
@@ -146,19 +162,25 @@
 
 ; The names of primitive procedures
 (define *prim-proc-names*
-	'(+ - * / = add1 sub1 quotient cons quote not zero? > >= < <= car cdr list null? eq? eqv? equal? length list->vector
+	'(+ - * / = add1 sub1 quotient cons quote not zero? > >= < <= car cdr list list-tail null? eq? eqv? equal? length list->vector
 		list? pair? vector->list vector? vector-set! number? symbol? caar cadr cadar procedure? set-car! set-cdr!
-		vector-ref vector map apply)
+		vector-ref vector map apply append assq)
 )
 
 ; For now, our initial global environment only contains procedure names.
 ; Recall that an environment associates a value (not an expression) with an identifier.
-(define init-env
+(define (make-init-env)
 	(extend-env
 		*prim-proc-names*
 		(map prim-proc *prim-proc-names*)
 		(empty-env)
 	)
+)
+
+(define global-env (make-init-env))
+
+(define (reset-global-env)
+	(set! global-env (make-init-env))
 )
 
 ; Usually an interpreter must define each built-in procedure individually.
@@ -193,9 +215,12 @@
 		[(list) (apply list args)]
 		[(null?) (null? (1st args))]
 		[(length) (length (1st args))]
+		[(append) (append (1st args) (2nd args))]
+		[(list-tail) (list-tail (1st args) (2nd args))]
 
 		;[(gensym) (gensym)]
 		;[(concat-symbols) (string->symbol (string-append (symbol->string x) (symbol->string y)))]
+		[(assq) (assq (1st args) (2nd args))]
 
 		[(list?) (list? (1st args))]
 		[(pair?) (pair? (1st args))]

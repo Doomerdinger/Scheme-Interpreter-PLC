@@ -17,7 +17,11 @@
 	[let-named-exp (name symbol?) (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
 	[let*-exp (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
 	[letrec-exp (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
+	
 	[set!-exp (var symbol?) (expr expression?)]
+	[define-exp (var symbol?) (expr expression?)]
+
+	[begin-exp (exprs (list-of expression?))]
 	
 	[app-exp (rator expression?) (args (list-of expression?))]
 
@@ -44,3 +48,52 @@
 	[lambda-vari-proc (bodies (list-of expression?)) (args symbol?) (env cell?)]
 	[lambda-dot-proc (bodies (list-of expression?)) (args (list-of symbol?)) (arglist symbol?) (env cell?)]
 )
+
+
+
+
+;(eval-one-exp 
+;	'(begin (define x 3) 
+;		(or #f 
+;			(begin (set! x 2) (> x 4))  
+;			#f 
+;			(begin (set! x 4) (> x 3)) 
+;			(begin (set! x 1)))
+;		x
+;	)
+;)
+
+;(eval-one-exp ' 
+;	(begin 
+;		(define latest 1) 
+;		(define total 1) 
+;		(or 
+;			(begin 
+;				(set! latest (+ latest 1))		;l = 2
+;				(set! total (+ total latest))	;t = 3
+;				(> total 1)
+;			)
+;			(begin 
+;				(set! latest (+ latest 1))	;l = 3
+;				(set! total (+ total latest)) 	;t = 6
+;				(> total 50)
+;			)
+;		)
+;		total
+;	)
+;)
+
+;(eval-one-exp ' 
+;	(begin 
+;		(define latest 1) 
+;		(define total 1) 
+;		(or 
+;			(begin 
+;				(set! latest (+ latest 1))		;l = 2
+;				(set! total (+ total latest))	;t = 3
+;				(> total 1)
+;			)
+;		)
+;		total
+;	)
+;)

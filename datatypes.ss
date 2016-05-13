@@ -32,14 +32,15 @@
 ;; environment type definitions
 (define-datatype environment environment?
 	(empty-env-record)
-	(extended-env-record (syms (list-of symbol?)) (vals (list-of scheme-value?)) (env environment?))
+	(extended-env-record (syms (list-of symbol?)) (vals (list-of scheme-value?)) (env cell?))
 )
 
 ; datatype for procedures.  At first there is only one
 ; kind of procedure, but more kinds will be added later.
-(define-datatype proc-val proc-val? 
+(define-datatype proc-val proc-val?
+	[dummy-proc]
 	[prim-proc (name symbol?)]
-	[lambda-proc (bodies (list-of expression?)) (args (list-of symbol?)) (env environment?)]
-	[lambda-vari-proc (bodies (list-of expression?)) (args symbol?) (env environment?)]
-	[lambda-dot-proc (bodies (list-of expression?)) (args (list-of symbol?)) (arglist symbol?) (env environment?)]
+	[lambda-proc (bodies (list-of expression?)) (args (list-of symbol?)) (env cell?)]
+	[lambda-vari-proc (bodies (list-of expression?)) (args symbol?) (env cell?)]
+	[lambda-dot-proc (bodies (list-of expression?)) (args (list-of symbol?)) (arglist symbol?) (env cell?)]
 )

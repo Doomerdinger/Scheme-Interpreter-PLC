@@ -20,3 +20,7 @@
 		(else (cons (car pr) (all-but-last-elem (cdr pr))))
 	)
 )
+
+(define (concat-symbols x y)
+	(string->symbol (string-append (symbol->string x) (symbol->string y)))
+)

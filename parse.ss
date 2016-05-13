@@ -168,7 +168,19 @@
 				[let-exp (vars declarations bodies)
 					(app-exp (lambda-exp vars (map syntax-expand bodies)) (map syntax-expand declarations))
 				]
-				[let-named-exp (name vars declarations bodies) (let-named-exp name vars (map syntax-expand declarations) (map syntax-expand bodies))]
+				
+				;[let-named-exp (name vars declarations bodies) (let-named-exp name vars (map syntax-expand declarations) (map syntax-expand bodies))]
+				[let-named-exp (name vars declarations bodies)
+					(letrec-exp 
+						(list name) 
+						(list (lambda-exp
+								vars
+								(map syntax-expand bodies)
+						))
+						(app-exp name (map syntax-expand declarations))
+					)
+				]
+
 				[let*-exp (vars declarations bodies) 
 					(car (fold-right (lambda (curVar curDecl next) (list (syntax-expand (let-exp (list curVar) (list (syntax-expand curDecl)) next))))
 								(map syntax-expand bodies)
@@ -178,6 +190,78 @@
 				]
 
 				[letrec-exp (vars declarations bodies) (letrec-exp vars (map syntax-expand declarations) (map syntax-expand bodies))]
+
+
+				;A letrec expression of the form
+
+				;(letrec ((var expr) ...) body1 body2 ...)
+
+				;may be expressed in terms of let and set! as
+
+				;(let ((var #f) ...)
+				;  (let ((temp expr) ...)
+				;    (set! var temp) ...
+				;    (let () body1 body2 ...)))
+
+				;[letrec-exp (vars declarations bodies)
+				;	(syntax-expand
+				;		(let-exp
+				;			vars
+				;			(map (lambda (x) (lit-exp #f)) vars)
+				;			(let ((sym (gensym)))
+				;				(list (let-exp
+				;					(map (lambda (x) (concat-symbols x sym)) vars)
+				;					declarations
+				;					(append
+				;						(map (lambda (var) (set!-exp var (concat-symbols var sym))) vars)
+				;						(list (let-exp '() '() bodies))
+				;					)
+				;				))
+				;			)
+				;		)
+				;	)
+				;]
+
+				;[letrec-exp (vars declarations bodies)
+				;	(syntax-expand
+				;		(let-exp
+				;			vars
+				;			(map (lambda (x) (lit-exp #f)) vars)
+				;			(let-exp 
+				;				'(sym)
+				;				(list (app-exp (var-exp 'gensym) '()))
+				;				(list 
+				;					(let-exp
+
+				;					;(map (lambda (x) (concat-symbols x sym)) vars)
+
+
+
+				;					(app-exp
+				;					  (var-exp 'map)
+				;					  (list (lambda-exp
+				;					     (list 'x)
+				;					     (list (app-exp
+				;					        (var-exp 'concat-symbols)
+				;					        (list (var-exp 'x) (var-exp 'sym)))))
+				;					    )) ;vars was before these parens?
+
+				;					declarations
+
+				;					(append
+				;						(map (lambda (var) (set!-exp var (app-exp
+				;					        (var-exp 'concat-symbols)
+				;					        (list (var-exp var) (var-exp 'sym))))) vars)
+				;						(list (let-exp '() '() bodies))
+				;					)
+
+				;				))
+				;			)
+				;		)
+				;	)
+				;]
+
+
 				[set!-exp (var expr) (set!-exp var (syntax-expand expr))]
 				[while-exp (test-exp bodies) (while-exp (syntax-expand test-exp) (map syntax-expand bodies))]
 

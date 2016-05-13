@@ -6,11 +6,11 @@
 ; eval-exp is the main component of the interpreter
 ; Everything put in the environment is in its most evauluated form
 ; with the exception of procedures, which are in their parced procedure form
-(define (eval-exp exp env)
+(define (eval-exp exp cell)
 	(let ((envir 
-		(cases environment env
+		(cases environment (deref cell)
 			[empty-env-record () init-env]
-			[else env]
+			[else cell]
 		)))
 		(cases expression exp
 			[lit-exp (datum) datum]
@@ -20,10 +20,10 @@
 					(lambda (x) x)
 					(lambda () 
 						(eopl:error 'apply-env ; procedure to call if id not in env
-						"variable not found in environment: ~s" id)
+						"Variable not found in environment: ~s" id)
 					)
 				)
-			] 
+			]
 			[app-exp (rator rands) 
 				(let ([proc-value (eval-exp rator envir)] [args (eval-rands rands envir)]) 
 					(apply-proc proc-value args))]
@@ -39,6 +39,52 @@
 						(eval-exp consequent envir)
 				)
 			]
+
+			[set!-exp (var expr)
+				(modify-env envir var (eval-exp expr envir))]
+
+
+				;A letrec expression of the form
+
+				;(letrec ((var expr) ...) body1 body2 ...)
+
+				;may be expressed in terms of let and set! as
+
+				;(let ((var #f) ...)
+				;  (let ((temp expr) ...)
+				;    (set! var temp) ...
+				;    (let () body1 body2 ...)))
+
+			;[letrec-exp (vars declarations bodies)
+			;	(let ((sym (gensym)))
+			;		(let (map (lambda (var) (list var #f)) vars)
+			;			(let (map (lambda (var dec) 
+			;						(list (concat-symbols var sym) (eval-exp dec envir))) vars declarations)
+			;				(append
+			;					(map (lambda (var) (set! var (concat-symbols var sym))) vars)
+			;					(list (let () bodies))
+			;				)
+			;			)
+			;		)
+			;	)
+			;]
+
+			[letrec-exp (vars declarations bodies)
+				(let ((sym (gensym)))
+					(let ((env1 (extend-env vars (map (lambda (var) #f) vars) envir)))
+						(let ((env2 (extend-env
+										(map (lambda (var) (concat-symbols var sym)) vars)
+										(eval-rands declarations env1)
+										env1
+									)))
+							(map (lambda (var) (modify-env env2 var (eval-exp (var-exp (concat-symbols var sym)) env2))) vars)
+		
+							(eval-rands bodies env2)
+						)
+					)
+				)
+			]
+
 			[let-exp (vars declarations bodies)
 				(let ((let-env (extend-env vars (eval-rands declarations envir) envir)))
 					(last-elem (eval-rands bodies let-env)))]
@@ -147,6 +193,9 @@
 		[(list) (apply list args)]
 		[(null?) (null? (1st args))]
 		[(length) (length (1st args))]
+
+		;[(gensym) (gensym)]
+		;[(concat-symbols) (string->symbol (string-append (symbol->string x) (symbol->string y)))]
 
 		[(list?) (list? (1st args))]
 		[(pair?) (pair? (1st args))]

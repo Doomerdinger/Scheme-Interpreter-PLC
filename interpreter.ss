@@ -35,7 +35,11 @@
 			]
 			[app-exp (rator rands) 
 				(let ([proc-value (eval-exp rator envir)] [args (eval-rands rands envir)]) 
-					(apply-proc proc-value args))]
+					(if (box? proc-value)
+						(apply-proc (unbox proc-value) args)
+						(apply-proc proc-value args))
+					)
+			]
 			[quote-exp (pression) pression]
 			[if-else-exp (test consequent alternative) 
 				(if (eval-exp test envir)
@@ -85,9 +89,9 @@
 
 			[letrec-exp (vars declarations bodies)
 				(let ((sym (gensym)))
-					(let ((env1 (extend-env vars (map (lambda (var) #f) vars) envir)))
+					(let ((env1 (extend-env (map val-arg vars) (map (lambda (var) #f) vars) envir)))
 						(let ((env2 (extend-env
-										(map (lambda (var) (concat-symbols var sym)) vars)
+										(map (lambda (var) (val-arg (concat-symbols var sym))) vars)
 										(eval-rands declarations env1)
 										env1
 									)))
@@ -100,7 +104,7 @@
 			]
 
 			[let-exp (vars declarations bodies)
-				(let ((let-env (extend-env vars (eval-rands declarations envir) envir)))
+				(let ((let-env (extend-env (map val-arg vars) (eval-rands declarations envir) envir)))
 					(last-elem (eval-rands bodies let-env)))]
 					;(last-elem (map (lambda (body) (eval-exp body let-env)) bodies)))]
 			[lambda-exp (args bodies) (lambda-proc bodies args envir)]
@@ -142,14 +146,24 @@
 ;  At this point, we only have primitive procedures.  
 ;  User-defined procedures will be added later.
 (define (apply-proc proc-value args)
-	(cases proc-val proc-value
-		[prim-proc (op) (apply-prim-proc op args)];(map unparse-args args))]
-		[lambda-proc (bodies lam-args env) (last-elem (eval-rands bodies (extend-env lam-args args env)))]
-		[lambda-vari-proc (bodies lam-arglist env) (last-elem (eval-rands bodies (extend-env (list lam-arglist) (list args) env)))]
-		[lambda-dot-proc (bodies lam-args lam-arglist env) (last-elem (eval-rands bodies (extend-env (append lam-args (list lam-arglist)) (nest-args-for-dot-lambda (length lam-args) args) env)))]
-		[else (error 'apply-proc
-		"Attempt to apply bad procedure: ~s" 
-		proc-value)]
+	(let ((prc-value (if (box? proc-value) (unbox proc-value) proc-value)))
+		(cases proc-val prc-value
+			[prim-proc (op) (apply-prim-proc op (map (lambda (x) (if (box? x) (unbox x) x)) args))];(map unparse-args args))]
+			[lambda-proc (bodies lam-args env) 
+				(last-elem 
+					(eval-rands bodies 
+
+						(extend-env lam-args args env)
+					)
+				)
+
+			]
+			[lambda-vari-proc (bodies lam-arglist env) (last-elem (eval-rands bodies (extend-env (list lam-arglist) (list args) env)))]
+			[lambda-dot-proc (bodies lam-args lam-arglist env) (last-elem (eval-rands bodies (extend-env (append lam-args (list lam-arglist)) (nest-args-for-dot-lambda (length lam-args) args) env)))]
+			[else (error 'apply-proc
+			"Attempt to apply bad procedure: ~s" 
+			proc-value)]
+		)
 	)
 )
 
@@ -171,8 +185,8 @@
 ; Recall that an environment associates a value (not an expression) with an identifier.
 (define (make-init-env)
 	(extend-env
-		*prim-proc-names*
-		(map prim-proc *prim-proc-names*)
+		(map val-arg *prim-proc-names*)
+		(map box (map prim-proc *prim-proc-names*))
 		(empty-env)
 	)
 )
@@ -258,4 +272,12 @@
 	)
 )  ; tail-recursive, so stack doesn't grow.
 
-(define (eval-one-exp x) (top-level-eval (syntax-expand (parse-exp x))))
+(define (eval-one-exp x) 
+
+	(let ((result (top-level-eval (syntax-expand (parse-exp x)))))
+		(if (box? result)
+			(unbox result)
+			result
+		)
+	)
+)

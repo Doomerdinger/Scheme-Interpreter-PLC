@@ -13,7 +13,31 @@
 
 (define empty-env (lambda () (make-cell (empty-env-record))))
 
-(define (extend-env syms vals env) (make-cell (extended-env-record syms vals env)))
+(define (determine-box arg val)
+	(if (box? val)
+		(cases argType arg
+			(ref-arg (sym) val)
+			(val-arg (sym) (box (unbox val)))
+		)
+		(box val)
+	)
+)
+(define (extend-env syms vals env)
+	(if (null? syms)
+		(make-cell (extended-env-record '() '() env))
+		(make-cell (extended-env-record
+		(map 
+			(lambda (x)
+				(cases argType x
+					(ref-arg (sym) sym)
+					(val-arg (sym) sym)
+				)
+			)
+			syms
+		)
+	(map determine-box syms vals) env))
+	)
+)
 
 (define (list-find-position sym los) (list-index (lambda (xsym) (eqv? sym xsym)) los))
 
@@ -73,19 +97,21 @@
 	(apply-env-ref (deref cell) sym succeed fail)
 )
 
+;;Can replace this with appl-env?
 (define (modify-env-set! cell sym new)
 	(cases environment (deref cell)
 		(empty-env-record () (modify-global-env-set! sym new))
 		(extended-env-record (syms vals extendedCell)
 			(let ((pos (list-find-position sym syms)))
 				(if (number? pos)
-					(cell-set! cell
-						(extended-env-record
-							syms
-							(list-replace-at-position vals pos new)
-							extendedCell
-						)
-					)
+					(set-box! (list-ref vals pos) (if (box? new) (unbox new) new))
+					;(cell-set! cell
+					;	(extended-env-record
+					;		syms
+					;		(list-replace-at-position vals pos new)
+					;		extendedCell
+					;	)
+					;)
 					(modify-env-set! extendedCell sym new)
 				)
 			)
@@ -93,19 +119,21 @@
 	)
 )
 
+;;Can replace this with apply-global-env?
 (define (modify-global-env-set! sym new)
 	(cases environment (deref global-env)
 		(empty-env-record () (eopl:error 'apply-env "The global environment is empty for set!... What the flying fox did you do?"))
 		(extended-env-record (syms vals extendedCell)
 			(let ((pos (list-find-position sym syms)))
 				(if (number? pos)
-					(cell-set! global-env
-						(extended-env-record
-							syms
-							(list-replace-at-position vals pos new)
-							extendedCell
-						)
-					)
+					(set-box! (list-ref vals pos) (if (box? new) (unbox new) new))
+					;(cell-set! global-env
+					;	(extended-env-record
+					;		syms
+					;		(list-replace-at-position vals pos new)
+					;		extendedCell
+					;	)
+					;)
 					(eopl:error 'apply-env "Unable to find variable in an environment for set!: ~s" sym)
 				)
 			)
@@ -119,22 +147,24 @@
 		(extended-env-record (syms vals extendedCell)
 			(let ((pos (list-find-position sym syms)))
 
-				(cell-set! global-env
+				;(cell-set! global-env
 					(if (number? pos)
-						(extended-env-record
-							syms
-							(list-replace-at-position vals pos new)
-							extendedCell
-						)
+						(set-box! (list-ref vals pos) (if (box? new) (unbox new) new))
+						;(extended-env-record
+						;	syms
+						;	(list-replace-at-position vals pos new)
+						;	extendedCell
+						;)
+						(cell-set! global-env
 						(extended-env-record
 							(cons sym syms)
-							(cons new vals)
+							(cons (box new) vals)
 							;(list-replace-at-position vals pos new)
 							extendedCell
-						)
+						))
 					)
 					;;(eopl:error 'apply-env "Unable to find variable in global-environment for define: ~s" sym)
-				)
+				;)
 			)
 		)
 	)

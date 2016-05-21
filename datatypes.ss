@@ -6,14 +6,19 @@
 
 (define (scheme-value? x) #t)
 
+(define-datatype argType argType?
+	[ref-arg (arg symbol?)]
+	[val-arg (arg symbol?)]
+)
+
 (define-datatype expression expression?
 	[var-exp (id symbol?)]
-	[lambda-exp-dot (args (list-of symbol?)) (arglist symbol?) (bodies (list-of expression?))]
+
+	[lambda-exp-dot (args (list-of argType?)) (arglist symbol?) (bodies (list-of expression?))]
 	[lambda-exp-vari (arglist symbol?) (bodies (list-of expression?))]
+	[lambda-exp (args (list-of argType?)) (bodies (list-of expression?))]
 
-	[lambda-exp (args (list-of symbol?)) (bodies (list-of expression?))]
 	[let-exp (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
-
 	[let-named-exp (name symbol?) (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
 	[let*-exp (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
 	[letrec-exp (vars (list-of symbol?)) (declarations (list-of expression?)) (bodies (list-of expression?))]
@@ -36,7 +41,8 @@
 ;; environment type definitions
 (define-datatype environment environment?
 	(empty-env-record)
-	(extended-env-record (syms (list-of symbol?)) (vals (list-of scheme-value?)) (env cell?))
+	;(extended-env-record (syms (list-of symbol?)) (vals (list-of scheme-value?)) (env cell?))
+	(extended-env-record (syms (list-of symbol?)) (vals (list-of box?)) (env cell?))
 )
 
 ; datatype for procedures.  At first there is only one
@@ -44,9 +50,9 @@
 (define-datatype proc-val proc-val?
 	[dummy-proc]
 	[prim-proc (name symbol?)]
-	[lambda-proc (bodies (list-of expression?)) (args (list-of symbol?)) (env cell?)]
+	[lambda-proc (bodies (list-of expression?)) (args (list-of argType?)) (env cell?)]
 	[lambda-vari-proc (bodies (list-of expression?)) (args symbol?) (env cell?)]
-	[lambda-dot-proc (bodies (list-of expression?)) (args (list-of symbol?)) (arglist symbol?) (env cell?)]
+	[lambda-dot-proc (bodies (list-of expression?)) (args (list-of argType?)) (arglist symbol?) (env cell?)]
 )
 
 

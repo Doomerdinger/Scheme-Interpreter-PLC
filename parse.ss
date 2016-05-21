@@ -10,6 +10,25 @@
 (define 4th cadddr)
 (define (length2? x) (if (list? x) (= (length x) 2) #f) )
 
+(define (valid-lambda-args? args)
+	(cond
+		((null? args) #t)
+		((symbol? (car args)) (valid-lambda-args? (cdr args)))
+		((pair? (car args)) (if (and (eq? (length (car args)) 2) (eq? (car (car args)) 'ref) (symbol? (cadr (car args))))
+								(valid-lambda-args? (cdr args))
+								#f
+							))
+		(else #f)
+	)
+)
+
+(define (convert-lambda-arg arg)
+	(if (pair? arg)
+		(ref-arg (cadr arg))
+		(val-arg arg)
+	)
+)
+
 (define (parse-exp datum)
 	(cond
 		[(symbol? datum) (var-exp datum)]
@@ -33,11 +52,11 @@
 						[(symbol? (2nd datum))
 							(lambda-exp-vari (2nd datum) (map parse-exp (cddr datum)))
 						]
-						[(and (pair? (2nd datum)) (not (list? (2nd datum))))
-							(lambda-exp-dot (all-but-last-elem (2nd datum)) (last-elem (2nd datum)) (map parse-exp (cddr datum)))
+						[(and (pair? (2nd datum)) (not (list? (2nd datum))) (valid-lambda-args? (all-but-last-elem (2nd datum))))
+							(lambda-exp-dot (map convert-lambda-arg (all-but-last-elem (2nd datum))) (last-elem (2nd datum)) (map parse-exp (cddr datum)))
 						]
-						[(and (or (pair? (2nd datum)) (null? (2nd datum))) ((list-of symbol?) (2nd datum)))
-							(lambda-exp (2nd datum) (map parse-exp (cddr datum)))
+						[(and (or (pair? (2nd datum)) (null? (2nd datum))) (valid-lambda-args? (2nd datum)))
+							(lambda-exp (map convert-lambda-arg (2nd datum)) (map parse-exp (cddr datum)))
 						]
 						[else (eopl:error 'parse-exp "incorrect arguments in lambda expression: ~s" datum)]
 					)
@@ -178,7 +197,7 @@
 
 				[lambda-exp (args bodies) (lambda-exp args (map syntax-expand bodies))]
 				[let-exp (vars declarations bodies)
-					(app-exp (lambda-exp vars (map syntax-expand bodies)) (map syntax-expand declarations))
+					(app-exp (lambda-exp (map val-arg vars) (map syntax-expand bodies)) (map syntax-expand declarations))
 				]
 				
 				;[let-named-exp (name vars declarations bodies) (let-named-exp name vars (map syntax-expand declarations) (map syntax-expand bodies))]
@@ -186,7 +205,8 @@
 					(letrec-exp 
 						(list name) 
 						(list (lambda-exp
-								vars
+								(map val-arg vars)
+								;vars
 								(map syntax-expand bodies)
 						))
 						(list (app-exp (var-exp name) (map syntax-expand declarations)))
@@ -370,10 +390,10 @@
 											(lambda (args)
 												(if (null? args)
 													(lit-exp #f)
-													(let ((expanded-car (syntax-expand (car args))) (sym (gensym)))
+													(let ((expanded-car (car args)) (sym (gensym)))
 														(let-exp (list sym) (list expanded-car)
-															(list (if-else-exp (var-exp sym) (var-exp sym) (expand-or (cdr args))))
-														)
+															(list (if-else-exp (var-exp sym) (var-exp sym) (expand-or (cdr args)))))
+														
 													)
 												)
 											)

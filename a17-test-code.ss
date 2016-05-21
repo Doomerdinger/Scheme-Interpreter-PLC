@@ -443,6 +443,7 @@
 ;#by loading this file (and your solution) and typing (r)
 
 (define (run-all)
+(begin
   (display 'set!-local-variables) 
   (test-set!-local-variables)
   (display 'simple-defines) 
@@ -458,7 +459,7 @@
   (display 'misc) 
   (test-misc)    
   (display 'ref) 
-  (test-ref)
+  (test-ref))
 )
 
 (define r run-all)

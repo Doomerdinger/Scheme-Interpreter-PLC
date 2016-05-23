@@ -39,6 +39,97 @@
 	(extended-env-record (syms (list-of symbol?)) (vals (list-of scheme-value?)) (env cell?))
 )
 
+(define-datatype continuation continuation?
+	(while-k
+		(test-exp expression?)
+		(bodies (list-of expression?))
+		(env cell?)
+		(k continuation?))
+	(while-helper-k
+		(test-exp expression?)
+		(bodies (list-of expression?))
+		(env cell?)
+		(k continuation?))
+	(if-else-k 
+		(then-exp expression?)
+		(else-exp expression?)
+		(env cell?)
+		(k continuation?))
+	(if-k 
+		(then-exp expression?)
+		(env cell?)
+		(k continuation?))
+	(begin-k
+		(env cell?)
+		(k continuation?))
+	(rator-k (rands (list-of expression?))
+		(env cell?)
+		(k continuation?))
+	(rands-k (proc-value scheme-value?)
+		(k continuation?)) ; etc
+	(number-if-else-k
+		(k continuation?)
+		(fail procedure?)
+		(vals (list-of scheme-value?))
+		(cel cell?)
+		(sym symbol?)
+		;(env cell?)
+	)
+	(add-1-if-else-k
+		(k continuation?)
+	)
+	(number-global-if-else-k
+		(k continuation?)
+		(fail continuation?)
+		(vals (list-of scheme-value?))
+	)
+	(cons-vals-rands-k
+		(rands (list-of expression?))
+		(env cell?)
+		(k continuation?)
+	)
+	(cons-with-value-k
+		(firstVal scheme-value?)
+		(k continuation?)
+	)
+	(last-elem-k
+		(k continuation?)
+	)
+
+	(identity-k
+	)
+
+	(set!-exp-k
+		(cel cell?)
+		(sym symbol?)
+		(k continuation?)
+	)
+
+	(mod-env-set!-k
+		(cel cell?)
+		(new scheme-value?)
+		(sym symbol?)
+		(k continuation?)
+	)
+
+	(mod-env-global-set!-k
+		(new scheme-value?)
+		(sym symbol?)
+		(k continuation?)
+	)
+
+	(define-exp-k
+		(sym symbol?)
+		(k continuation?)
+	)
+
+	(mod-env-global-define-k
+		(new scheme-value?)
+		(sym symbol?)
+		(k continuation?)
+	)
+)
+
 ; datatype for procedures.  At first there is only one
 ; kind of procedure, but more kinds will be added later.
 (define-datatype proc-val proc-val?
@@ -47,53 +138,5 @@
 	[lambda-proc (bodies (list-of expression?)) (args (list-of symbol?)) (env cell?)]
 	[lambda-vari-proc (bodies (list-of expression?)) (args symbol?) (env cell?)]
 	[lambda-dot-proc (bodies (list-of expression?)) (args (list-of symbol?)) (arglist symbol?) (env cell?)]
+	[continuation-proc (k continuation?)]
 )
-
-
-
-
-;(eval-one-exp 
-;	'(begin (define x 3) 
-;		(or #f 
-;			(begin (set! x 2) (> x 4))  
-;			#f 
-;			(begin (set! x 4) (> x 3)) 
-;			(begin (set! x 1)))
-;		x
-;	)
-;)
-
-;(eval-one-exp ' 
-;	(begin 
-;		(define latest 1) 
-;		(define total 1) 
-;		(or 
-;			(begin 
-;				(set! latest (+ latest 1))		;l = 2
-;				(set! total (+ total latest))	;t = 3
-;				(> total 1)
-;			)
-;			(begin 
-;				(set! latest (+ latest 1))	;l = 3
-;				(set! total (+ total latest)) 	;t = 6
-;				(> total 50)
-;			)
-;		)
-;		total
-;	)
-;)
-
-;(eval-one-exp ' 
-;	(begin 
-;		(define latest 1) 
-;		(define total 1) 
-;		(or 
-;			(begin 
-;				(set! latest (+ latest 1))		;l = 2
-;				(set! total (+ total latest))	;t = 3
-;				(> total 1)
-;			)
-;		)
-;		total
-;	)
-;)

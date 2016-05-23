@@ -33,8 +33,9 @@
 						[(symbol? (2nd datum))
 							(lambda-exp-vari (2nd datum) (map parse-exp (cddr datum)))
 						]
-						[(and (pair? (2nd datum)) (not (list? (2nd datum))))
-							(lambda-exp-dot (all-but-last-elem (2nd datum)) (last-elem (2nd datum)) (map parse-exp (cddr datum)))
+						[(and 
+							(pair? (2nd datum)) (not (list? (2nd datum))))
+							(lambda-exp-dot (all-but-last-elem (2nd datum)) (last-elem-old (2nd datum)) (map parse-exp (cddr datum)))
 						]
 						[(and (or (pair? (2nd datum)) (null? (2nd datum))) ((list-of symbol?) (2nd datum)))
 							(lambda-exp (2nd datum) (map parse-exp (cddr datum)))
@@ -183,14 +184,14 @@
 				
 				;[let-named-exp (name vars declarations bodies) (let-named-exp name vars (map syntax-expand declarations) (map syntax-expand bodies))]
 				[let-named-exp (name vars declarations bodies)
-					(letrec-exp 
+					(syntax-expand (letrec-exp 
 						(list name) 
 						(list (lambda-exp
 								vars
 								(map syntax-expand bodies)
 						))
 						(list (app-exp (var-exp name) (map syntax-expand declarations)))
-					)
+					))
 				]
 
 				[let*-exp (vars declarations bodies) 
@@ -201,7 +202,26 @@
 					)	 )
 				]
 
-				[letrec-exp (vars declarations bodies) (letrec-exp vars (map syntax-expand declarations) (map syntax-expand bodies))]
+				[letrec-exp (vars declarations bodies)
+					(let* ((sym (gensym)) (secondList (map (lambda (var) (concat-symbols var sym)) vars)))
+						(syntax-expand
+							(let-exp
+								vars
+								(make-list (length vars) (lit-exp #f))
+								(list
+								(let-exp
+									secondList
+									declarations
+									(append
+										(map (lambda (x y) (set!-exp x (var-exp y))) vars secondList)
+										bodies
+									)
+								)
+								)
+							)
+						)
+					)
+				]
 
 				[begin-exp (bodies) (begin-exp (map syntax-expand bodies))]
 				;A letrec expression of the form
@@ -272,6 +292,8 @@
 				;		)
 				;	)
 				;]
+
+
 
 
 				[set!-exp (var expr) (set!-exp var (syntax-expand expr))]
@@ -371,8 +393,10 @@
 												(if (null? args)
 													(lit-exp #f)
 													(let ((expanded-car (syntax-expand (car args))) (sym (gensym)))
-														(let-exp (list sym) (list expanded-car)
+														(syntax-expand 
+															(let-exp (list sym) (list expanded-car)
 															(list (if-else-exp (var-exp sym) (var-exp sym) (expand-or (cdr args))))
+															)
 														)
 													)
 												)
